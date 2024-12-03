@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # ZooKeeper
+  zookeeper:
+    image: wurstmeister/zookeeper:latest
+    environment:
+      ZOOKEEPER_SERVER_ID: 1
+      ZOOKEEPER_LISTENERS: CLIENT:2181
+      ZOOKEEPER_LISTENER_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_SYNC_LIMIT: 2
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/data  # ZooKeeper 데이터를 저장할 볼륨
+      - zookeeper_datalog:/datalog  # ZooKeeper의 데이터 로그를 저장할 볼륨
+    networks:
+      - kafka_network
+
+  # Kafka 1
+  kafka:
+    image: wurstmeister/kafka:latest
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9093  # Docker 네트워크 내에서 Kafka를 `kafka:9093`으로 광고
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9093  # 모든 네트워크 인터페이스에서 수신
+      KAFKA_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL: PLAINTEXT
+      KAFKA_LISTENER_PORT: 9093
+      KAFKA_BROKER_ID: 1  # Kafka 브로커 ID
+      KAFKA_RESERVED_BROKER_MAX_ID: 1000  # reserved.broker.max.id 값을 명시적으로 설정
+    ports:
+      - "9093:9093"  # Kafka 브로커 포트
+    volumes:
+      - kafka_data:/var/lib/kafka/data  # Kafka 데이터를 저장할 볼륨
+    depends_on:
+      - zookeeper
+    networks:
+      - kafka_network
+
+  # Kafka UI (provectuslabs/kafka-ui)
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "local"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9093"  # Kafka 브로커 주소
+      KAFKA_CLUSTERS_0_ZOOKEEPER: "zookeeper:2181"  # ZooKeeper 주소
+    ports:
+      - "8080:8080"  # Kafka UI 포트
+    depends_on:
+      - kafka
+    networks:
+      - kafka_network
+
+networks:
+  kafka_network:
+    driver: bridge
+
+# 볼륨 정의
+volumes:
+  zookeeper_data:
+    driver: local  # ZooKeeper 데이터 볼륨
+  zookeeper_datalog:
+    driver: local  # ZooKeeper 로그 볼륨
+  kafka_data:
+    driver: local  # Kafka 데이터 볼륨
+
